@@ -1,0 +1,21 @@
+# secrets (Puppet/GitLab tokens)
+.env
+
+# logs
+*.log
+
+# python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# generated data
+nodegroup_lvm.json
+nodegroup_lvm_disks.json
+osversie_app_structuur.json
+puppetgroepen.json
+cachestore.json
+
+# backups
+*.bak
