@@ -48,8 +48,10 @@ python3 03_lvm_set.py               # 3. write to Puppet -> lvm_set.log
 ```
 
 1. **`02_lvm_info.py`** writes only the groups whose calculated `required_disks` differs from the value already in Puppet. A run where nothing changed gives an empty list (`[]`). Hiera files that are missing or can't be read are logged in `lvm_info.log`.
-2. **`03_lvm_set.py --dry-run`** logs, for every group in `nodegroup_lvm.json`, the value it would write, without contacting Puppet. Check `lvm_set.log` before the real run.
+2. **`03_lvm_set.py --dry-run`** reads the current `required_disks` of every group in `nodegroup_lvm.json` from Puppet and logs the change it would make (`old => new`), without writing anything. Check `lvm_set.log` before the real run.
 3. **`03_lvm_set.py`** writes the values. Failed requests are logged as `ERROR` in `lvm_set.log`, with the HTTP status and the response body.
+
+`03_lvm_set.py` is idempotent: it only writes to groups whose current value in Puppet differs from the value in `nodegroup_lvm.json`, so running it again does nothing. The last line of `lvm_set.log` gives the totals (`changed`, `unchanged`, `failed`, `skipped`). If any group failed, the script exits with code `1`.
 
 Running `02_lvm_info.py` again after a successful update should give `[]`. Both log files are overwritten on every run.
 
@@ -72,7 +74,8 @@ flowchart LR
     A --> J[(nodegroup_lvm.json)]
     A --> L1[lvm_info.log]
     J --> B[03_lvm_set.py]
-    B -- "POST variables.required_disks" --> G
+    G -- "current required_disks" --> B
+    B -- "POST variables.required_disks<br/>(only when different)" --> G
     B --> L2[lvm_set.log]
 ```
 
@@ -108,10 +111,14 @@ Output per group in `nodegroup_lvm.json`:
 
 Reads `nodegroup_lvm.json` and runs one `asyncio` task per group with `aiohttp`. A semaphore limits this to `MAX_CONCURRENT = 10` groups at the same time. For each group it:
 
-1. Posts `{"variables": {"required_disks": null}}`. This removes the current value, so the new value replaces it instead of being merged into it.
-2. If `required_disks` is not empty, posts `{"variables": {"required_disks": {...}}}`. If it is empty (`{}`), the variable stays removed.
+1. Gets the group (`GET {GROUPS_URL}/{id}`) and reads its current `required_disks`. A missing or empty value counts as `{}`.
+2. If the current value is the same as the new one, it logs `unchanged` and stops. With `--dry-run` it stops here as well, after logging the change it would make.
+3. Posts `{"variables": {"required_disks": null}}`. This removes the current value, so the new value replaces it instead of being merged into it.
+4. If the new `required_disks` is not empty, posts `{"variables": {"required_disks": {...}}}`. If it is empty (`{}`), the variable stays removed.
 
-If step 1 fails, step 2 is skipped for that group.
+If a step fails (HTTP 4xx/5xx, or Puppet can't be reached), the group is logged as `failed` and the next steps are skipped. The other groups continue.
+
+The comparison uses the value in Puppet at the moment `03_lvm_set.py` runs, not the value `02_lvm_info.py` saw. This means it is also correct when you run it twice, or when someone changed a group between the two scripts.
 
 ## Flow
 
@@ -135,8 +142,11 @@ flowchart TD
     K --> W[(nodegroup_lvm.json)]
 
     W --> S2([03_lvm_set.py])
-    S2 --> DR{--dry-run?}
-    DR -- yes --> LOG[log value in lvm_set.log]
+    S2 --> GET[GET current required_disks]
+    GET --> EQ{same as<br/>new value?}
+    EQ -- yes --> UN[log unchanged]
+    EQ -- no --> DR{--dry-run?}
+    DR -- yes --> LOG[log old => new]
     DR -- no --> N[POST required_disks = null]
     N --> NE{empty value?}
     NE -- yes --> DONE[variable removed]
