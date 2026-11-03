@@ -190,10 +190,17 @@ def hiera_info(groep, project):
     return tempresult
 
 
-def connect_gl():
+def connect_gl(pool_size):
     gl_url = os.getenv("GL_URL")
     gl_token = os.getenv("GL_TOKEN")
-    gl = gitlab.Gitlab(url=gl_url, private_token=gl_token)
+
+    # one connection per thread, the requests default of 10 is too small for MAX_THREAD
+    session = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(pool_connections=1, pool_maxsize=pool_size)
+    session.mount('https://', adapter)
+    session.mount('http://', adapter)
+
+    gl = gitlab.Gitlab(url=gl_url, private_token=gl_token, session=session)
 
     try:
         gl.auth()
@@ -211,7 +218,7 @@ def main():
     if len(groepen) > 0:
         MAX_THREAD = min(32, os.cpu_count() + 4)
 
-        gl = connect_gl()
+        gl = connect_gl(MAX_THREAD)
         project = gl.projects.get(PROJECT_ID, lazy=True)
         fn = partial(hiera_info, project=project)
 
