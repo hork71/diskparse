@@ -157,7 +157,11 @@ def required_disks(tempresult):
         )
         disks[pvs[0]] = disks.get(pvs[0], 0) + totaal
 
-    return {pv: [str(math.ceil(totaal + LVM_RESERVED_G))] for pv, totaal in disks.items()}
+    # sorted on length first, so /dev/sdz comes before /dev/sdaa
+    return {
+        pv: [str(math.ceil(totaal + LVM_RESERVED_G))]
+        for pv, totaal in sorted(disks.items(), key=lambda item: (len(item[0]), item[0]))
+    }
 
 
 def hiera_info(groep, project):
