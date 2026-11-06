@@ -27,7 +27,7 @@ DEFAULT_SIZE_G = 50         # LV without size, or with "extents": "100%FREE"
 MB_MARGIN_G = 5             # extra margin for sizes given in M/MB
 LVM_RESERVED_G = 5          # per disk, reserved for lvm metadata/header
 IGNORED_VGS = {'VGsystem'}
-IGNORED_PV_PREFIX = '/dev/sda'
+IGNORED_PV_RE = re.compile(r'^/dev/sda\d*$')     # /dev/sda and its partitions, not /dev/sdaa
 
 SIZE_RE = re.compile(r'^\s*(\d+(?:\.\d+)?)\s*([MGT])B?\s*$', re.IGNORECASE)
 
@@ -142,7 +142,7 @@ def merged_volume_groups(tempresult):
 def required_disks(tempresult):
     disks = {}
     for vg_name, vg in merged_volume_groups(tempresult).items():
-        pvs = [pv for pv in vg['physical_volumes'] if not pv.startswith(IGNORED_PV_PREFIX)]
+        pvs = [pv for pv in vg['physical_volumes'] if not IGNORED_PV_RE.match(pv)]
         if not pvs:
             if not vg['physical_volumes']:
                 logging.warning(f"{tijdstip()},{tempresult['name']},{tempresult['id']}: {vg_name} has no physical_volumes, skipped")

@@ -166,7 +166,7 @@ For each disk, `required_disks` is the sum of all logical volumes in the volume 
 | no `size` | 50G |
 | unknown size format | 50G, with a warning in `lvm_info.log` |
 | `"ensure": "absent"` | not counted |
-| volume group `VGsystem`, disks `/dev/sda*` | ignored |
+| volume group `VGsystem`, disk `/dev/sda` and its partitions (`/dev/sda2`, not `/dev/sdaa`) | ignored |
 | every disk | + 5G reserved for LVM metadata/header |
 
 The total is rounded up to a whole number and stored as a string in a list, e.g. `{"/dev/sdb": ["96"], "/dev/sdc": ["55"]}`.
