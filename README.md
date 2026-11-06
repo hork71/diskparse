@@ -90,7 +90,7 @@ The two scripts are connected only through `nodegroup_lvm.json`. This means you 
 | `hiera_info(groep, project)` | Runs per group in a `ThreadPoolExecutor` (max `min(32, cpu + 4)` threads). Gets the LVM data for each profile and the role, then calls `required_disks()` and compares the result with the current Puppet value. |
 | `lvm_info(project, pad, naam, groep)` | Fetches `{pad}/{naam}.yaml` from GitLab and returns `lvm::volume_groups`. The result is stored in `cache_map`, a dict shared by all threads and protected by a lock, so each profile or role is usually fetched only once. A 404 is cached too. Other errors are not cached, so a later group can try again. |
 | `merged_volume_groups(tempresult)` | Deep merges the volume groups of all profiles and the role into one definition per VG (see [Merging](#merging)). |
-| `required_disks(tempresult)` | Applies the [sizing rules](#sizing-rules) and returns `{"/dev/sdX": ["<GB>"]}`. |
+| `required_disks(tempresult)` | Applies the [sizing rules](#sizing-rules) and returns `{"/dev/sdX": ["<GB>"]}`, sorted by device name (see [Disk order](#disk-order)). |
 | `size_in_g(lv_name, lv_conf)` | Converts the size of one logical volume to G. |
 
 Output per group in `nodegroup_lvm.json`:
@@ -170,6 +170,18 @@ For each disk, `required_disks` is the sum of all logical volumes in the volume 
 | every disk | + 5G reserved for LVM metadata/header |
 
 The total is rounded up to a whole number and stored as a string in a list, e.g. `{"/dev/sdb": ["96"], "/dev/sdc": ["55"]}`.
+
+### Disk order
+
+The disks in `required_disks` are always sorted by device name, whatever order the volume groups have in the profiles and the role. They are sorted on the length of the name first and then alphabetically, so the order also stays right past 26 disks:
+
+```
+/dev/sdb, /dev/sdc, ... /dev/sdz, /dev/sdaa, /dev/sdab
+```
+
+A plain alphabetical sort would put `/dev/sdaa` before `/dev/sdb`.
+
+The order only affects `nodegroup_lvm.json` and what is sent to Puppet. `03_lvm_set.py` ignores the order when it compares with the current value in Puppet, so a different order never causes a write.
 
 ### Merging
 
