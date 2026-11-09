@@ -26,6 +26,11 @@ def read_groepen():
     return data
 
 
+def zelfde_disks(a, b):
+    """True when both required_disks have the same disks and sizes, in the same order."""
+    return list((a or {}).items()) == list((b or {}).items())
+
+
 async def get_required_disks(session, url, groep):
     """Return the current required_disks of the group in Puppet, {} when it isn't set, or None on an error."""
     async with session.get(f"{url}/{groep['id']}", ssl=False) as response:
@@ -72,7 +77,8 @@ async def update_groep(session, url, groep, dry_run):
     if huidig is None:
         return 'failed'
 
-    if huidig == nieuw:
+    # a different order counts as a change, so a wrongly sorted value in puppet gets sorted
+    if zelfde_disks(huidig, nieuw):
         logging.info(f"{tijdstip()},{groep['name']},{groep['id']},unchanged, required_disks = {huidig}")
         return 'unchanged'
 

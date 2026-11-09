@@ -164,6 +164,11 @@ def required_disks(tempresult):
     }
 
 
+def zelfde_disks(a, b):
+    """True when both required_disks have the same disks and sizes, in the same order."""
+    return list((a or {}).items()) == list((b or {}).items())
+
+
 def hiera_info(groep, project):
 
     tempresult = {}
@@ -187,8 +192,8 @@ def hiera_info(groep, project):
 
     tempresult['required_disks'] = required_disks(tempresult)
 
-    # nothing to change in puppet
-    if tempresult['required_disks'] == (huidig or {}):
+    # nothing to change in puppet; a different order counts as a change, so it gets sorted there too
+    if zelfde_disks(tempresult['required_disks'], huidig):
         return {}
 
     return tempresult
